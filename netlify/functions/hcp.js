@@ -16,29 +16,13 @@ exports.handler = async function(event, context) {
   const endpoint = event.queryStringParameters && event.queryStringParameters.endpoint;
 
   if (!apiKey || !endpoint) {
-    return {
-      statusCode: 400,
-      headers,
-      body: JSON.stringify({ error: 'Missing key or endpoint parameter' })
-    };
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing key or endpoint' }) };
   }
 
-  const allowedEndpoints = [
-    '/v1/jobs',
-    '/v1/estimates',
-    '/v1/customers',
-    '/v1/employees',
-    '/v1/invoices',
-    '/v1/payments',
-  ];
-
+  const allowedEndpoints = ['/jobs', '/employees', '/invoices', '/customers', '/estimates'];
   const isAllowed = allowedEndpoints.some(e => endpoint.startsWith(e));
   if (!isAllowed) {
-    return {
-      statusCode: 403,
-      headers,
-      body: JSON.stringify({ error: 'Endpoint not allowed' })
-    };
+    return { statusCode: 403, headers, body: JSON.stringify({ error: 'Endpoint not allowed' }) };
   }
 
   try {
@@ -52,42 +36,31 @@ exports.handler = async function(event, context) {
     const queryString = queryParts.length > 0 ? '?' + queryParts.join('&') : '';
     const fullUrl = 'https://api.housecallpro.com' + endpoint + queryString;
 
+    console.log('Calling HCP URL:', fullUrl);
+
     const data = await new Promise((resolve, reject) => {
-      const options = {
+      const req = https.request(fullUrl, {
         method: 'GET',
         headers: {
-          'Authorization': 'Token token=' + apiKey,
-          'Content-Type': 'application/json'
+          'Authorization': 'Token ' + apiKey,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         }
-      };
-
-      const req = https.request(fullUrl, options, (res) => {
+      }, (res) => {
         let body = '';
         res.on('data', chunk => body += chunk);
         res.on('end', () => {
-          try {
-            resolve({ status: res.statusCode, body: JSON.parse(body) });
-          } catch(e) {
-            resolve({ status: res.statusCode, body: body });
-          }
+          try { resolve({ status: res.statusCode, body: JSON.parse(body) }); }
+          catch(e) { resolve({ status: res.statusCode, body: body }); }
         });
       });
-
       req.on('error', reject);
       req.end();
     });
 
-    return {
-      statusCode: data.status,
-      headers,
-      body: JSON.stringify(data.body)
-    };
+    return { statusCode: data.status, headers, body: JSON.stringify(data.body) };
 
   } catch(err) {
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: err.message })
-    };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
   }
 };
