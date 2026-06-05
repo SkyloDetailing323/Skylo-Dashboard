@@ -820,7 +820,7 @@ function loadLiveData() {
   document.getElementById('live-error').style.display = 'none';
 
   var range = getMonthRange();
-  hcpCall('/v1/jobs', {
+  hcpCall('/jobs', {
     'scheduled_start_min': range.start,
     'scheduled_start_max': range.end,
     'per_page': '100'
@@ -884,7 +884,7 @@ function loadReceivables() {
   document.getElementById('recv-content').style.display = 'none';
   document.getElementById('recv-error').style.display = 'none';
 
-  hcpCall('/v1/invoices', {
+  hcpCall('/invoices', {
     'status': 'unpaid',
     'per_page': '100'
   }).then(function(data) {
@@ -940,8 +940,8 @@ function loadTechData() {
 
   var range = getMonthRange();
   Promise.all([
-    hcpCall('/v1/jobs', {'scheduled_start_min': range.start, 'scheduled_start_max': range.end, 'per_page': '100'}),
-    hcpCall('/v1/employees', {'per_page': '100'})
+    hcpCall('/jobs', {'scheduled_start_min': range.start, 'scheduled_start_max': range.end, 'per_page': '100'}),
+    hcpCall('/employees', {'per_page': '100'})
   ]).then(function(results) {
     var jobs = results[0].jobs || [];
     var employees = results[1].employees || [];
