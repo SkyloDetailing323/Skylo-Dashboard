@@ -837,15 +837,15 @@ function hcpCall(endpoint, params) {
 
 // Fetches all pages for list endpoints (jobs, invoices, etc.)
 function hcpCallAll(endpoint, params, listKey) {
-  var baseParams = Object.assign({}, params, { per_page: '200', page: '1' });
+  var baseParams = Object.assign({}, params, { page_size: '200', page: '1' });
   return hcpCall(endpoint, baseParams).then(function(data) {
     var items = data[listKey] || [];
-    var total = data.total_count || items.length;
+    var total = data.total_count || data.total || items.length;
     if (items.length >= total) return items;
     var pages = Math.ceil(total / 200);
     var reqs = [];
     for (var p = 2; p <= pages; p++) {
-      reqs.push(hcpCall(endpoint, Object.assign({}, params, { per_page: '200', page: String(p) })));
+      reqs.push(hcpCall(endpoint, Object.assign({}, params, { page_size: '200', page: String(p) })));
     }
     return Promise.all(reqs).then(function(results) {
       results.forEach(function(r) { items = items.concat(r[listKey] || []); });
@@ -888,7 +888,9 @@ function loadLiveData() {
     document.getElementById('live-error').style.border='1px solid var(--skylo)';
     document.getElementById('live-error').style.color='var(--skylo)';
     var firstComplete = allJobs.find(function(j){return j.work_status&&j.work_status.indexOf('complete')!==-1;})||allJobs[0];
-    document.getElementById('live-error').textContent='DEBUG — '+allJobs.length+' total jobs. Statuses: '+statusBreakdown+'. First complete job keys: '+Object.keys(firstComplete||{}).join(', ')+'. Raw: '+JSON.stringify(firstComplete).substring(0,400);
+    var sched = firstComplete && firstComplete.schedule ? JSON.stringify(firstComplete.schedule) : 'null';
+    var wts = firstComplete && firstComplete.work_timestamps ? JSON.stringify(firstComplete.work_timestamps) : 'null';
+    document.getElementById('live-error').textContent='DEBUG — '+allJobs.length+' total jobs. Statuses: '+statusBreakdown+'. schedule: '+sched+'. work_timestamps: '+wts;
 
     var jobs = allJobs.filter(function(j) {
       var d = (j.scheduled_start || j.completed_at || '').substring(0, 10);
