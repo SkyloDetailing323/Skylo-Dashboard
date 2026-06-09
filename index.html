@@ -881,6 +881,14 @@ function loadLiveData() {
     'scheduled_start_min': range.start,
     'scheduled_start_max': range.end
   }, 'jobs').then(function(jobs) {
+    // DEBUG: show raw statuses so we can see what HCP actually returns
+    var statusSample = jobs.slice(0,5).map(function(j) { return '"' + j.work_status + '"'; }).join(', ');
+    document.getElementById('live-error').style.display = 'block';
+    document.getElementById('live-error').style.background = 'var(--skylo-dim)';
+    document.getElementById('live-error').style.border = '1px solid var(--skylo)';
+    document.getElementById('live-error').style.color = 'var(--skylo)';
+    document.getElementById('live-error').textContent = 'DEBUG — ' + jobs.length + ' jobs fetched. Date range: ' + range.start + ' to ' + range.end + '. Sample work_status values: ' + (statusSample || 'none');
+
     var totalRevenue = 0;
     var completedJobs = 0;
     var invoicedJobs = 0;
