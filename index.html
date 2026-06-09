@@ -175,6 +175,7 @@ input[type=range]{width:100%;accent-color:var(--skylo);cursor:pointer;}
     <div class="ni" data-tab="live" onclick="go('live')">● &nbsp;Live Revenue</div>
     <div class="ni" data-tab="receivables" onclick="go('receivables')">$ &nbsp;Receivables</div>
     <div class="ni" data-tab="techs" onclick="go('techs')">👷 &nbsp;Tech Performance</div>
+    <div class="ni" data-tab="sales" onclick="go('sales')">📈 &nbsp;Sales</div>
     <div class="ni" data-tab="pl" onclick="go('pl')">≡ &nbsp;P&L Statement</div>
     <div class="ni" data-tab="mom" onclick="go('mom')">⇅ &nbsp;Month vs Month</div>
     <div class="ni" data-tab="fixed" onclick="go('fixed')">⊟ &nbsp;Fixed Costs</div>
@@ -646,12 +647,44 @@ input[type=range]{width:100%;accent-color:var(--skylo);cursor:pointer;}
         Loading tech data from Housecall Pro...
       </div>
       <div id="tech-content" style="display:none">
-        <div class="card">
-          <div class="ch"><span class="ct">Technician Revenue Leaderboard</span><span class="cv" id="tech-month">This Month</span></div>
-          <div id="tech-list"></div>
+        <div class="tcol">
+          <div class="card" style="margin-bottom:0">
+            <div class="ch"><span class="ct">Revenue Leaderboard</span><span class="cv" id="tech-month">This Month</span></div>
+            <div id="tech-list"></div>
+          </div>
+          <div class="card" style="margin-bottom:0">
+            <div class="ch"><span class="ct">Tips Leaderboard</span></div>
+            <div id="tech-tips-list"></div>
+          </div>
         </div>
       </div>
       <div id="tech-error" style="display:none;background:var(--orange-dim);border:1px solid var(--orange);border-radius:10px;padding:16px;font-size:13px;color:var(--orange)"></div>
+    </div>
+
+    <!-- SALES -->
+    <div class="page" id="page-sales">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+        <div style="font-size:11px;color:var(--muted)">Live from Housecall Pro</div>
+        <button onclick="loadSalesData()" style="background:var(--skylo);color:#000;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;font-family:'DM Sans',sans-serif">↻ Refresh</button>
+      </div>
+      <div id="sales-loading" style="text-align:center;padding:40px;color:var(--muted)">
+        <div class="dots" style="margin-bottom:12px"><span></span><span></span><span></span></div>
+        Loading sales data from Housecall Pro...
+      </div>
+      <div id="sales-content" style="display:none">
+        <div class="kgrid" id="sales-kpis"></div>
+        <div class="tcol">
+          <div class="card" style="margin-bottom:0">
+            <div class="ch"><span class="ct">Sold by Trevor</span><span class="cv" id="sales-trevor-count">—</span></div>
+            <div id="sales-trevor-list"></div>
+          </div>
+          <div class="card" style="margin-bottom:0">
+            <div class="ch"><span class="ct">Recurring Jobs</span><span class="cv" id="sales-recurring-count">—</span></div>
+            <div id="sales-recurring-list"></div>
+          </div>
+        </div>
+      </div>
+      <div id="sales-error" style="display:none;background:var(--orange-dim);border:1px solid var(--orange);border-radius:10px;padding:16px;font-size:13px;color:var(--orange)"></div>
     </div>
 
     <!-- CHAT -->
@@ -831,9 +864,10 @@ function loadLiveData() {
     var invoicedJobs = 0;
 
     jobs.forEach(function(j) {
-      var amt = parseFloat(j.total_amount || j.invoice_amount || 0);
+      if (j.work_status !== 'completed') return;
+      var amt = parseFloat(j.total_amount || j.invoice_amount || 0) / 100;
       totalRevenue += amt;
-      if (j.work_status === 'completed') completedJobs++;
+      completedJobs++;
       if (j.invoice_number) invoicedJobs++;
     });
 
@@ -846,22 +880,20 @@ function loadLiveData() {
       '<div class="kcard e"><div class="klbl">Avg Ticket Value</div><div class="kval o">' + fmt(avgTicket) + '</div></div>' +
       '<div class="kcard n"><div class="klbl">Total Jobs</div><div class="kval g">' + jobs.length + '</div></div>';
 
-    document.getElementById('live-job-count').textContent = jobs.length + ' jobs';
+    document.getElementById('live-job-count').textContent = completedJobs + ' completed';
 
-    // Recent jobs list
-    var recent = jobs.slice(0, 15);
+    // Recent completed jobs list
+    var recent = jobs.filter(function(j) { return j.work_status === 'completed'; }).slice(0, 15);
     document.getElementById('live-jobs-list').innerHTML = recent.map(function(j) {
-      var amt = parseFloat(j.total_amount || j.invoice_amount || 0);
-      var status = j.work_status || 'scheduled';
-      var color = status === 'completed' ? 'var(--green)' : status === 'in_progress' ? 'var(--skylo)' : 'var(--muted)';
-      return '<div class="row"><div class="rl"><span class="rn">' + (j.customer && j.customer.first_name ? j.customer.first_name + ' ' + j.customer.last_name : 'Customer') + '</span><span class="rnt" style="color:' + color + '">' + status + '</span></div><span class="ra">' + fmt(amt) + '</span></div>';
+      var amt = parseFloat(j.total_amount || j.invoice_amount || 0) / 100;
+      return '<div class="row"><div class="rl"><span class="rn">' + (j.customer && j.customer.first_name ? j.customer.first_name + ' ' + j.customer.last_name : 'Customer') + '</span><span class="rnt" style="color:var(--green)">completed</span></div><span class="ra">' + fmt(amt) + '</span></div>';
     }).join('');
 
-    // Revenue by day
+    // Revenue by day (completed only)
     var byDay = {};
-    jobs.forEach(function(j) {
+    jobs.filter(function(j) { return j.work_status === 'completed'; }).forEach(function(j) {
       var d = (j.scheduled_start || '').substring(0,10);
-      if (d) byDay[d] = (byDay[d] || 0) + parseFloat(j.total_amount || 0);
+      if (d) byDay[d] = (byDay[d] || 0) + parseFloat(j.total_amount || 0) / 100;
     });
     var days = Object.keys(byDay).sort().slice(-10);
     document.getElementById('live-revenue-days').innerHTML = days.map(function(d) {
@@ -895,7 +927,7 @@ function loadReceivables() {
     var now = new Date();
 
     invoices.forEach(function(inv) {
-      var amt = parseFloat(inv.total_amount || inv.balance_due || 0);
+      var amt = parseFloat(inv.total_amount || inv.balance_due || 0) / 100;
       totalOwed += amt;
       if (inv.due_at) {
         var due = new Date(inv.due_at);
@@ -913,7 +945,7 @@ function loadReceivables() {
 
     document.getElementById('recv-total').textContent = fmt(totalOwed) + ' outstanding';
     document.getElementById('recv-list').innerHTML = invoices.slice(0,20).map(function(inv) {
-      var amt = parseFloat(inv.total_amount || inv.balance_due || 0);
+      var amt = parseFloat(inv.total_amount || inv.balance_due || 0) / 100;
       var customer = inv.customer ? (inv.customer.first_name + ' ' + inv.customer.last_name) : 'Customer';
       var due = inv.due_at ? inv.due_at.substring(0,10) : 'No due date';
       var days = 0;
@@ -958,17 +990,24 @@ function loadTechData() {
       var techId = j.assigned_employee_ids && j.assigned_employee_ids[0];
       if (!techId) techId = 'unassigned';
       var name = empMap[techId] || 'Unassigned';
-      if (!techStats[name]) techStats[name] = { jobs: 0, revenue: 0, completed: 0 };
+      if (!techStats[name]) techStats[name] = { jobs: 0, revenue: 0, completed: 0, tips: 0 };
       techStats[name].jobs++;
-      techStats[name].revenue += parseFloat(j.total_amount || 0);
-      if (j.work_status === 'completed') techStats[name].completed++;
+      if (j.work_status === 'completed') {
+        techStats[name].revenue += parseFloat(j.total_amount || 0) / 100;
+        techStats[name].tips += parseFloat(j.tip_amount || 0) / 100;
+        techStats[name].completed++;
+      }
     });
 
     var sorted = Object.keys(techStats).sort(function(a,b) {
       return techStats[b].revenue - techStats[a].revenue;
     });
+    var sortedByTips = Object.keys(techStats).filter(function(n) { return techStats[n].tips > 0; }).sort(function(a,b) {
+      return techStats[b].tips - techStats[a].tips;
+    });
 
     var maxRev = sorted.length > 0 ? techStats[sorted[0]].revenue : 1;
+    var maxTips = sortedByTips.length > 0 ? techStats[sortedByTips[0]].tips : 1;
     var now = new Date();
     var monthName = now.toLocaleString('default', {month:'long'});
     document.getElementById('tech-month').textContent = monthName + ' ' + now.getFullYear();
@@ -980,12 +1019,74 @@ function loadTechData() {
       return '<div class="vrow"><span class="vrank">#' + (i+1) + '</span><div style="flex:1"><div style="font-size:13px;margin-bottom:3px">' + name + '</div><div style="font-size:11px;color:var(--muted)">' + s.completed + ' completed · avg ' + fmt(avg) + '</div></div><div class="vbar"><div class="vfill" style="width:' + pct + '%"></div></div><span class="vamt">' + fmt(s.revenue) + '</span></div>';
     }).join('');
 
+    document.getElementById('tech-tips-list').innerHTML = sortedByTips.length > 0 ? sortedByTips.map(function(name, i) {
+      var s = techStats[name];
+      var pct = Math.round((s.tips / maxTips) * 100);
+      return '<div class="vrow"><span class="vrank">#' + (i+1) + '</span><div style="flex:1"><div style="font-size:13px;margin-bottom:3px">' + name + '</div><div style="font-size:11px;color:var(--muted)">' + s.completed + ' jobs</div></div><div class="vbar"><div class="vfill" style="width:' + pct + '%;background:var(--green)"></div></div><span class="vamt" style="color:var(--green)">' + fmt(s.tips) + '</span></div>';
+    }).join('') : '<div style="padding:16px 20px;color:var(--muted);font-size:13px">No tip data found — tips may not be tracked per-technician in HCP.</div>';
+
     document.getElementById('tech-loading').style.display = 'none';
     document.getElementById('tech-content').style.display = 'block';
   }).catch(function(err) {
     document.getElementById('tech-loading').style.display = 'none';
     document.getElementById('tech-error').style.display = 'block';
     document.getElementById('tech-error').textContent = 'Error: ' + err.message;
+  });
+}
+
+var RECURRING_TAGS = ['weekly', 'biweekly', 'monthly', 'bimonthly', 'quarterly'];
+
+function loadSalesData() {
+  document.getElementById('sales-loading').style.display = 'block';
+  document.getElementById('sales-content').style.display = 'none';
+  document.getElementById('sales-error').style.display = 'none';
+
+  var range = getMonthRange();
+  hcpCall('/jobs', {'scheduled_start_min': range.start, 'scheduled_start_max': range.end, 'per_page': '200'}).then(function(data) {
+    var jobs = data.jobs || [];
+
+    var trevorJobs = jobs.filter(function(j) {
+      var tags = (j.tags || []).map(function(t) { return (t.name || t || '').toLowerCase(); });
+      return tags.some(function(t) { return t.indexOf('sold by trevor') !== -1; });
+    });
+
+    var recurringJobs = jobs.filter(function(j) {
+      var tags = (j.tags || []).map(function(t) { return (t.name || t || '').toLowerCase(); });
+      return tags.some(function(t) { return RECURRING_TAGS.indexOf(t) !== -1; });
+    });
+
+    var trevorRevenue = trevorJobs.reduce(function(s, j) { return s + parseFloat(j.total_amount || 0) / 100; }, 0);
+    var recurringRevenue = recurringJobs.reduce(function(s, j) { return s + parseFloat(j.total_amount || 0) / 100; }, 0);
+
+    document.getElementById('sales-kpis').innerHTML =
+      '<div class="kcard r"><div class="klbl">Trevor Sales</div><div class="kval s">' + trevorJobs.length + ' jobs</div><div class="ksub">' + fmt(trevorRevenue) + '</div></div>' +
+      '<div class="kcard g"><div class="klbl">Recurring Revenue</div><div class="kval g">' + fmt(recurringRevenue) + '</div><div class="ksub">' + recurringJobs.length + ' recurring jobs</div></div>' +
+      '<div class="kcard e"><div class="klbl">Recurring % of Total</div><div class="kval o">' + (jobs.length > 0 ? Math.round(recurringJobs.length / jobs.length * 100) : 0) + '%</div></div>' +
+      '<div class="kcard n"><div class="klbl">Total Jobs This Month</div><div class="kval g">' + jobs.length + '</div></div>';
+
+    document.getElementById('sales-trevor-count').textContent = trevorJobs.length + ' jobs';
+    document.getElementById('sales-trevor-list').innerHTML = trevorJobs.length > 0 ? trevorJobs.slice(0, 20).map(function(j) {
+      var amt = parseFloat(j.total_amount || 0) / 100;
+      var customer = j.customer ? (j.customer.first_name + ' ' + j.customer.last_name) : 'Customer';
+      var status = j.work_status || 'scheduled';
+      var color = status === 'completed' ? 'var(--green)' : status === 'in_progress' ? 'var(--skylo)' : 'var(--muted)';
+      return '<div class="row"><div class="rl"><span class="rn">' + customer + '</span><span class="rnt" style="color:' + color + '">' + status + '</span></div><span class="ra">' + fmt(amt) + '</span></div>';
+    }).join('') : '<div style="padding:16px 20px;color:var(--muted);font-size:13px">No jobs tagged "sold by trevor" this month.</div>';
+
+    document.getElementById('sales-recurring-count').textContent = recurringJobs.length + ' jobs';
+    document.getElementById('sales-recurring-list').innerHTML = recurringJobs.length > 0 ? recurringJobs.slice(0, 20).map(function(j) {
+      var amt = parseFloat(j.total_amount || 0) / 100;
+      var customer = j.customer ? (j.customer.first_name + ' ' + j.customer.last_name) : 'Customer';
+      var tags = (j.tags || []).map(function(t) { return t.name || t; }).filter(function(t) { return RECURRING_TAGS.indexOf((t||'').toLowerCase()) !== -1; }).join(', ');
+      return '<div class="row"><div class="rl"><span class="rn">' + customer + '</span><span class="rnt" style="color:var(--skylo)">' + tags + '</span></div><span class="ra">' + fmt(amt) + '</span></div>';
+    }).join('') : '<div style="padding:16px 20px;color:var(--muted);font-size:13px">No recurring jobs found this month.</div>';
+
+    document.getElementById('sales-loading').style.display = 'none';
+    document.getElementById('sales-content').style.display = 'block';
+  }).catch(function(err) {
+    document.getElementById('sales-loading').style.display = 'none';
+    document.getElementById('sales-error').style.display = 'block';
+    document.getElementById('sales-error').textContent = 'Error: ' + err.message;
   });
 }
 
@@ -996,6 +1097,7 @@ go = function(tab) {
   if (tab === 'live') loadLiveData();
   if (tab === 'receivables') loadReceivables();
   if (tab === 'techs') loadTechData();
+  if (tab === 'sales') loadSalesData();
 };
 
 // NAV - simple and direct
@@ -1014,7 +1116,7 @@ function go(tab) {
     }
   }
 
-  var names = {dashboard:'Dashboard',live:'Live Revenue',receivables:'Receivables',techs:'Tech Performance',pl:'P&L Statement',mom:'Month vs Month',fixed:'Fixed Costs',vendors:'Vendor Spend',supply:'Supply Tracker',receipts:'Receipts',whatif:'What If',hire:'Hire Calculator',tax:'Tax Estimate',settings:'Settings',upload:'Upload Data',chat:'Ask Anything'};
+  var names = {dashboard:'Dashboard',live:'Live Revenue',receivables:'Receivables',techs:'Tech Performance',sales:'Sales',pl:'P&L Statement',mom:'Month vs Month',fixed:'Fixed Costs',vendors:'Vendor Spend',supply:'Supply Tracker',receipts:'Receipts',whatif:'What If',hire:'Hire Calculator',tax:'Tax Estimate',settings:'Settings',upload:'Upload Data',chat:'Ask Anything'};
   document.getElementById('ptitle').textContent = names[tab] || tab;
 }
 
