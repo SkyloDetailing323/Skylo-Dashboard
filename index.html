@@ -855,8 +855,8 @@ function hcpCallAll(endpoint, params, listKey) {
 }
 
 function isDone(j) {
-  var s = j.work_status || '';
-  return s === 'complete' || s === 'completed' || s === 'needs_invoice' || s === 'invoice_sent';
+  var s = (j.work_status || '').toLowerCase();
+  return s.indexOf('complete') !== -1 || s === 'needs_invoice' || s === 'invoice_sent';
 }
 
 function getMonthRange() {
@@ -887,7 +887,8 @@ function loadLiveData() {
     document.getElementById('live-error').style.background='var(--skylo-dim)';
     document.getElementById('live-error').style.border='1px solid var(--skylo)';
     document.getElementById('live-error').style.color='var(--skylo)';
-    document.getElementById('live-error').textContent='DEBUG — '+allJobs.length+' total jobs. Statuses: '+statusBreakdown+'. Date range queried: '+range.start+' to '+range.end+'. Sample dates: '+dateSample;
+    var firstComplete = allJobs.find(function(j){return j.work_status&&j.work_status.indexOf('complete')!==-1;})||allJobs[0];
+    document.getElementById('live-error').textContent='DEBUG — '+allJobs.length+' total jobs. Statuses: '+statusBreakdown+'. First complete job keys: '+Object.keys(firstComplete||{}).join(', ')+'. Raw: '+JSON.stringify(firstComplete).substring(0,400);
 
     var jobs = allJobs.filter(function(j) {
       var d = (j.scheduled_start || j.completed_at || '').substring(0, 10);
