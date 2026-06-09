@@ -882,19 +882,12 @@ function loadLiveData() {
   document.getElementById('live-error').style.display = 'none';
 
   var range = getMonthRange();
-  hcpCallAll('/jobs', {}, 'jobs').then(function(allJobs) {
-    var allDone = allJobs.filter(isDone);
-    var jobs = allDone.filter(function(j) {
-      return getJobDate(j) >= range.start && getJobDate(j) <= range.end;
-    });
-    // Temporary: show total fetched vs completed in subtitle
-    document.querySelector('#page-live .topbar-sub') && (document.querySelector('#page-live .topbar-sub').textContent = '');
-    document.getElementById('live-error').style.display='block';
-    document.getElementById('live-error').style.background='rgba(41,171,226,0.08)';
-    document.getElementById('live-error').style.border='1px solid rgba(41,171,226,0.3)';
-    document.getElementById('live-error').style.color='var(--skylo)';
-    document.getElementById('live-error').style.fontSize='12px';
-    document.getElementById('live-error').textContent='HCP: '+allJobs.length+' total jobs fetched, '+allDone.length+' completed all-time, '+jobs.length+' completed this month';
+  var today = new Date().toISOString().split('T')[0];
+  hcpCallAll('/jobs', {
+    'scheduled_start_min': range.start,
+    'scheduled_start_max': today
+  }, 'jobs').then(function(allJobs) {
+    var jobs = allJobs.filter(isDone);
 
     var totalRevenue = 0;
     var completedJobs = 0;
@@ -1007,8 +1000,9 @@ function loadTechData() {
   document.getElementById('tech-error').style.display = 'none';
 
   var range = getMonthRange();
+  var today = new Date().toISOString().split('T')[0];
   Promise.all([
-    hcpCallAll('/jobs', {'work_status': 'complete', 'per_page': '200'}, 'jobs'),
+    hcpCallAll('/jobs', {'scheduled_start_min': range.start, 'scheduled_start_max': today}, 'jobs'),
     hcpCallAll('/employees', {}, 'employees')
   ]).then(function(results) {
     var jobs = results[0].filter(function(j) {
@@ -1080,10 +1074,9 @@ function loadSalesData() {
   document.getElementById('sales-error').style.display = 'none';
 
   var range = getMonthRange();
-  hcpCallAll('/jobs', {}, 'jobs').then(function(allJobs) {
-    var jobs = allJobs.filter(function(j) {
-      return isDone(j) && getJobDate(j) >= range.start && getJobDate(j) <= range.end;
-    });
+  var today = new Date().toISOString().split('T')[0];
+  hcpCallAll('/jobs', {'scheduled_start_min': range.start, 'scheduled_start_max': today}, 'jobs').then(function(allJobs) {
+    var jobs = allJobs.filter(isDone);
 
     var trevorJobs = jobs.filter(function(j) {
       var tags = (j.tags || []).map(function(t) { return (t.name || t || '').toLowerCase(); });
