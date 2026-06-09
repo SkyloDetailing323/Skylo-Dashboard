@@ -877,14 +877,21 @@ function loadLiveData() {
   document.getElementById('live-error').style.display = 'none';
 
   var range = getMonthRange();
-  hcpCallAll('/jobs', {
-    'work_status': 'complete',
-    'per_page': '200'
-  }, 'jobs').then(function(allCompleted) {
-    // Filter to current month by scheduled_start date
-    var jobs = allCompleted.filter(function(j) {
+  hcpCallAll('/jobs', {}, 'jobs').then(function(allJobs) {
+    // DEBUG: show status breakdown across all jobs
+    var statusCounts = {};
+    allJobs.forEach(function(j) { var s = j.work_status || 'null'; statusCounts[s] = (statusCounts[s]||0)+1; });
+    var statusBreakdown = Object.keys(statusCounts).map(function(s){ return s+'×'+statusCounts[s]; }).join(', ');
+    var dateSample = allJobs.slice(0,3).map(function(j){ return (j.scheduled_start||'').substring(0,10); }).join(', ');
+    document.getElementById('live-error').style.display='block';
+    document.getElementById('live-error').style.background='var(--skylo-dim)';
+    document.getElementById('live-error').style.border='1px solid var(--skylo)';
+    document.getElementById('live-error').style.color='var(--skylo)';
+    document.getElementById('live-error').textContent='DEBUG — '+allJobs.length+' total jobs. Statuses: '+statusBreakdown+'. Date range queried: '+range.start+' to '+range.end+'. Sample dates: '+dateSample;
+
+    var jobs = allJobs.filter(function(j) {
       var d = (j.scheduled_start || j.completed_at || '').substring(0, 10);
-      return d >= range.start && d <= range.end;
+      return isDone(j) && d >= range.start && d <= range.end;
     });
 
     var totalRevenue = 0;
