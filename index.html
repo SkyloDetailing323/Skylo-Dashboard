@@ -835,15 +835,16 @@ function hcpCall(endpoint, params) {
   });
 }
 
-// Fetches all pages — keeps going until HCP returns a partial page or total_count is reached
+// Fetches all pages — stops on partial page, total_count, or after 10 pages max
 function hcpCallAll(endpoint, params, listKey) {
   var PAGE = 200;
+  var MAX_PAGES = 10;
   function fetchPage(page, acc) {
+    if (page > MAX_PAGES) return Promise.resolve(acc);
     return hcpCall(endpoint, Object.assign({}, params, { page_size: String(PAGE), page: String(page) })).then(function(data) {
       var items = data[listKey] || [];
       acc = acc.concat(items);
       var total = data.total_count || data.total || 0;
-      // Stop if we got a partial page (no more data) or hit the declared total
       if (items.length < PAGE || (total > 0 && acc.length >= total)) return acc;
       return fetchPage(page + 1, acc);
     });
