@@ -835,6 +835,30 @@ function hcpCall(endpoint, params) {
   });
 }
 
+// Fetches all pages for list endpoints (jobs, invoices, etc.)
+function hcpCallAll(endpoint, params, listKey) {
+  var baseParams = Object.assign({}, params, { per_page: '200', page: '1' });
+  return hcpCall(endpoint, baseParams).then(function(data) {
+    var items = data[listKey] || [];
+    var total = data.total_count || items.length;
+    if (items.length >= total) return items;
+    var pages = Math.ceil(total / 200);
+    var reqs = [];
+    for (var p = 2; p <= pages; p++) {
+      reqs.push(hcpCall(endpoint, Object.assign({}, params, { per_page: '200', page: String(p) })));
+    }
+    return Promise.all(reqs).then(function(results) {
+      results.forEach(function(r) { items = items.concat(r[listKey] || []); });
+      return items;
+    });
+  });
+}
+
+function isDone(j) {
+  var s = j.work_status || '';
+  return s === 'complete' || s === 'completed' || s === 'needs_invoice' || s === 'invoice_sent';
+}
+
 function getMonthRange() {
   var now = new Date();
   var start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -853,18 +877,16 @@ function loadLiveData() {
   document.getElementById('live-error').style.display = 'none';
 
   var range = getMonthRange();
-  hcpCall('/jobs', {
+  hcpCallAll('/jobs', {
     'scheduled_start_min': range.start,
-    'scheduled_start_max': range.end,
-    'per_page': '100'
-  }).then(function(data) {
-    var jobs = data.jobs || [];
+    'scheduled_start_max': range.end
+  }, 'jobs').then(function(jobs) {
     var totalRevenue = 0;
     var completedJobs = 0;
     var invoicedJobs = 0;
 
     jobs.forEach(function(j) {
-      if (j.work_status !== 'completed') return;
+      if (!isDone(j)) return;
       var amt = parseFloat(j.total_amount || j.invoice_amount || 0);
       totalRevenue += amt;
       completedJobs++;
@@ -883,7 +905,7 @@ function loadLiveData() {
     document.getElementById('live-job-count').textContent = completedJobs + ' completed';
 
     // Recent completed jobs list
-    var recent = jobs.filter(function(j) { return j.work_status === 'completed'; }).slice(0, 15);
+    var recent = jobs.filter(isDone).slice(0, 15);
     document.getElementById('live-jobs-list').innerHTML = recent.map(function(j) {
       var amt = parseFloat(j.total_amount || j.invoice_amount || 0);
       return '<div class="row"><div class="rl"><span class="rn">' + (j.customer && j.customer.first_name ? j.customer.first_name + ' ' + j.customer.last_name : 'Customer') + '</span><span class="rnt" style="color:var(--green)">completed</span></div><span class="ra">' + fmt(amt) + '</span></div>';
@@ -891,7 +913,7 @@ function loadLiveData() {
 
     // Revenue by day (completed only)
     var byDay = {};
-    jobs.filter(function(j) { return j.work_status === 'completed'; }).forEach(function(j) {
+    jobs.filter(isDone).forEach(function(j) {
       var d = (j.scheduled_start || '').substring(0,10);
       if (d) byDay[d] = (byDay[d] || 0) + parseFloat(j.total_amount || 0);
     });
@@ -972,11 +994,11 @@ function loadTechData() {
 
   var range = getMonthRange();
   Promise.all([
-    hcpCall('/jobs', {'scheduled_start_min': range.start, 'scheduled_start_max': range.end, 'per_page': '100'}),
-    hcpCall('/employees', {'per_page': '100'})
+    hcpCallAll('/jobs', {'scheduled_start_min': range.start, 'scheduled_start_max': range.end}, 'jobs'),
+    hcpCallAll('/employees', {}, 'employees')
   ]).then(function(results) {
-    var jobs = results[0].jobs || [];
-    var employees = results[1].employees || [];
+    var jobs = results[0];
+    var employees = results[1];
 
     // Build employee map
     var empMap = {};
@@ -992,7 +1014,7 @@ function loadTechData() {
       var name = empMap[techId] || 'Unassigned';
       if (!techStats[name]) techStats[name] = { jobs: 0, revenue: 0, completed: 0, tips: 0 };
       techStats[name].jobs++;
-      if (j.work_status === 'completed') {
+      if (isDone(j)) {
         techStats[name].revenue += parseFloat(j.total_amount || 0);
         techStats[name].tips += parseFloat(j.tip_amount || 0);
         techStats[name].completed++;
@@ -1042,8 +1064,7 @@ function loadSalesData() {
   document.getElementById('sales-error').style.display = 'none';
 
   var range = getMonthRange();
-  hcpCall('/jobs', {'scheduled_start_min': range.start, 'scheduled_start_max': range.end, 'per_page': '200'}).then(function(data) {
-    var jobs = data.jobs || [];
+  hcpCallAll('/jobs', {'scheduled_start_min': range.start, 'scheduled_start_max': range.end}, 'jobs').then(function(jobs) {
 
     var trevorJobs = jobs.filter(function(j) {
       var tags = (j.tags || []).map(function(t) { return (t.name || t || '').toLowerCase(); });
@@ -1069,7 +1090,7 @@ function loadSalesData() {
       var amt = parseFloat(j.total_amount || 0);
       var customer = j.customer ? (j.customer.first_name + ' ' + j.customer.last_name) : 'Customer';
       var status = j.work_status || 'scheduled';
-      var color = status === 'completed' ? 'var(--green)' : status === 'in_progress' ? 'var(--skylo)' : 'var(--muted)';
+      var color = isDone(j) ? 'var(--green)' : status === 'in_progress' ? 'var(--skylo)' : 'var(--muted)';
       return '<div class="row"><div class="rl"><span class="rn">' + customer + '</span><span class="rnt" style="color:' + color + '">' + status + '</span></div><span class="ra">' + fmt(amt) + '</span></div>';
     }).join('') : '<div style="padding:16px 20px;color:var(--muted);font-size:13px">No jobs tagged "sold by trevor" this month.</div>';
 
