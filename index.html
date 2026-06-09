@@ -859,6 +859,14 @@ function isDone(j) {
   return s.indexOf('complete') !== -1 || s === 'needs_invoice' || s === 'invoice_sent';
 }
 
+function getJobDate(j) {
+  var wts = j.work_timestamps;
+  if (wts && wts.completed_at) return wts.completed_at.substring(0, 10);
+  var sched = j.schedule;
+  if (sched && sched.scheduled_start) return sched.scheduled_start.substring(0, 10);
+  return '';
+}
+
 function getMonthRange() {
   var now = new Date();
   var start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -878,23 +886,8 @@ function loadLiveData() {
 
   var range = getMonthRange();
   hcpCallAll('/jobs', {}, 'jobs').then(function(allJobs) {
-    // DEBUG: show status breakdown across all jobs
-    var statusCounts = {};
-    allJobs.forEach(function(j) { var s = j.work_status || 'null'; statusCounts[s] = (statusCounts[s]||0)+1; });
-    var statusBreakdown = Object.keys(statusCounts).map(function(s){ return s+'×'+statusCounts[s]; }).join(', ');
-    var dateSample = allJobs.slice(0,3).map(function(j){ return (j.scheduled_start||'').substring(0,10); }).join(', ');
-    document.getElementById('live-error').style.display='block';
-    document.getElementById('live-error').style.background='var(--skylo-dim)';
-    document.getElementById('live-error').style.border='1px solid var(--skylo)';
-    document.getElementById('live-error').style.color='var(--skylo)';
-    var firstComplete = allJobs.find(function(j){return j.work_status&&j.work_status.indexOf('complete')!==-1;})||allJobs[0];
-    var sched = firstComplete && firstComplete.schedule ? JSON.stringify(firstComplete.schedule) : 'null';
-    var wts = firstComplete && firstComplete.work_timestamps ? JSON.stringify(firstComplete.work_timestamps) : 'null';
-    document.getElementById('live-error').textContent='DEBUG — '+allJobs.length+' total jobs. Statuses: '+statusBreakdown+'. schedule: '+sched+'. work_timestamps: '+wts;
-
     var jobs = allJobs.filter(function(j) {
-      var d = (j.scheduled_start || j.completed_at || '').substring(0, 10);
-      return isDone(j) && d >= range.start && d <= range.end;
+      return isDone(j) && getJobDate(j) >= range.start && getJobDate(j) <= range.end;
     });
 
     var totalRevenue = 0;
@@ -929,7 +922,7 @@ function loadLiveData() {
     // Revenue by day (completed only)
     var byDay = {};
     jobs.forEach(function(j) {
-      var d = (j.scheduled_start || '').substring(0,10);
+      var d = getJobDate(j);
       if (d) byDay[d] = (byDay[d] || 0) + parseFloat(j.total_amount || 0);
     });
     var days = Object.keys(byDay).sort().slice(-10);
@@ -1013,8 +1006,7 @@ function loadTechData() {
     hcpCallAll('/employees', {}, 'employees')
   ]).then(function(results) {
     var jobs = results[0].filter(function(j) {
-      var d = (j.scheduled_start || j.completed_at || '').substring(0, 10);
-      return d >= range.start && d <= range.end;
+      return isDone(j) && getJobDate(j) >= range.start && getJobDate(j) <= range.end;
     });
     var employees = results[1];
 
@@ -1082,10 +1074,9 @@ function loadSalesData() {
   document.getElementById('sales-error').style.display = 'none';
 
   var range = getMonthRange();
-  hcpCallAll('/jobs', {'work_status': 'complete', 'per_page': '200'}, 'jobs').then(function(allJobs) {
+  hcpCallAll('/jobs', {}, 'jobs').then(function(allJobs) {
     var jobs = allJobs.filter(function(j) {
-      var d = (j.scheduled_start || j.completed_at || '').substring(0, 10);
-      return d >= range.start && d <= range.end;
+      return isDone(j) && getJobDate(j) >= range.start && getJobDate(j) <= range.end;
     });
 
     var trevorJobs = jobs.filter(function(j) {
