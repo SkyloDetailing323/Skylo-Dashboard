@@ -865,7 +865,7 @@ function loadLiveData() {
 
     jobs.forEach(function(j) {
       if (j.work_status !== 'completed') return;
-      var amt = parseFloat(j.total_amount || j.invoice_amount || 0) / 100;
+      var amt = parseFloat(j.total_amount || j.invoice_amount || 0);
       totalRevenue += amt;
       completedJobs++;
       if (j.invoice_number) invoicedJobs++;
@@ -885,7 +885,7 @@ function loadLiveData() {
     // Recent completed jobs list
     var recent = jobs.filter(function(j) { return j.work_status === 'completed'; }).slice(0, 15);
     document.getElementById('live-jobs-list').innerHTML = recent.map(function(j) {
-      var amt = parseFloat(j.total_amount || j.invoice_amount || 0) / 100;
+      var amt = parseFloat(j.total_amount || j.invoice_amount || 0);
       return '<div class="row"><div class="rl"><span class="rn">' + (j.customer && j.customer.first_name ? j.customer.first_name + ' ' + j.customer.last_name : 'Customer') + '</span><span class="rnt" style="color:var(--green)">completed</span></div><span class="ra">' + fmt(amt) + '</span></div>';
     }).join('');
 
@@ -893,7 +893,7 @@ function loadLiveData() {
     var byDay = {};
     jobs.filter(function(j) { return j.work_status === 'completed'; }).forEach(function(j) {
       var d = (j.scheduled_start || '').substring(0,10);
-      if (d) byDay[d] = (byDay[d] || 0) + parseFloat(j.total_amount || 0) / 100;
+      if (d) byDay[d] = (byDay[d] || 0) + parseFloat(j.total_amount || 0);
     });
     var days = Object.keys(byDay).sort().slice(-10);
     document.getElementById('live-revenue-days').innerHTML = days.map(function(d) {
@@ -927,7 +927,7 @@ function loadReceivables() {
     var now = new Date();
 
     invoices.forEach(function(inv) {
-      var amt = parseFloat(inv.total_amount || inv.balance_due || 0) / 100;
+      var amt = parseFloat(inv.total_amount || inv.balance_due || 0);
       totalOwed += amt;
       if (inv.due_at) {
         var due = new Date(inv.due_at);
@@ -945,7 +945,7 @@ function loadReceivables() {
 
     document.getElementById('recv-total').textContent = fmt(totalOwed) + ' outstanding';
     document.getElementById('recv-list').innerHTML = invoices.slice(0,20).map(function(inv) {
-      var amt = parseFloat(inv.total_amount || inv.balance_due || 0) / 100;
+      var amt = parseFloat(inv.total_amount || inv.balance_due || 0);
       var customer = inv.customer ? (inv.customer.first_name + ' ' + inv.customer.last_name) : 'Customer';
       var due = inv.due_at ? inv.due_at.substring(0,10) : 'No due date';
       var days = 0;
@@ -993,8 +993,8 @@ function loadTechData() {
       if (!techStats[name]) techStats[name] = { jobs: 0, revenue: 0, completed: 0, tips: 0 };
       techStats[name].jobs++;
       if (j.work_status === 'completed') {
-        techStats[name].revenue += parseFloat(j.total_amount || 0) / 100;
-        techStats[name].tips += parseFloat(j.tip_amount || 0) / 100;
+        techStats[name].revenue += parseFloat(j.total_amount || 0);
+        techStats[name].tips += parseFloat(j.tip_amount || 0);
         techStats[name].completed++;
       }
     });
@@ -1055,8 +1055,8 @@ function loadSalesData() {
       return tags.some(function(t) { return RECURRING_TAGS.indexOf(t) !== -1; });
     });
 
-    var trevorRevenue = trevorJobs.reduce(function(s, j) { return s + parseFloat(j.total_amount || 0) / 100; }, 0);
-    var recurringRevenue = recurringJobs.reduce(function(s, j) { return s + parseFloat(j.total_amount || 0) / 100; }, 0);
+    var trevorRevenue = trevorJobs.reduce(function(s, j) { return s + parseFloat(j.total_amount || 0); }, 0);
+    var recurringRevenue = recurringJobs.reduce(function(s, j) { return s + parseFloat(j.total_amount || 0); }, 0);
 
     document.getElementById('sales-kpis').innerHTML =
       '<div class="kcard r"><div class="klbl">Trevor Sales</div><div class="kval s">' + trevorJobs.length + ' jobs</div><div class="ksub">' + fmt(trevorRevenue) + '</div></div>' +
@@ -1066,7 +1066,7 @@ function loadSalesData() {
 
     document.getElementById('sales-trevor-count').textContent = trevorJobs.length + ' jobs';
     document.getElementById('sales-trevor-list').innerHTML = trevorJobs.length > 0 ? trevorJobs.slice(0, 20).map(function(j) {
-      var amt = parseFloat(j.total_amount || 0) / 100;
+      var amt = parseFloat(j.total_amount || 0);
       var customer = j.customer ? (j.customer.first_name + ' ' + j.customer.last_name) : 'Customer';
       var status = j.work_status || 'scheduled';
       var color = status === 'completed' ? 'var(--green)' : status === 'in_progress' ? 'var(--skylo)' : 'var(--muted)';
@@ -1075,7 +1075,7 @@ function loadSalesData() {
 
     document.getElementById('sales-recurring-count').textContent = recurringJobs.length + ' jobs';
     document.getElementById('sales-recurring-list').innerHTML = recurringJobs.length > 0 ? recurringJobs.slice(0, 20).map(function(j) {
-      var amt = parseFloat(j.total_amount || 0) / 100;
+      var amt = parseFloat(j.total_amount || 0);
       var customer = j.customer ? (j.customer.first_name + ' ' + j.customer.last_name) : 'Customer';
       var tags = (j.tags || []).map(function(t) { return t.name || t; }).filter(function(t) { return RECURRING_TAGS.indexOf((t||'').toLowerCase()) !== -1; }).join(', ');
       return '<div class="row"><div class="rl"><span class="rn">' + customer + '</span><span class="rnt" style="color:var(--skylo)">' + tags + '</span></div><span class="ra">' + fmt(amt) + '</span></div>';
