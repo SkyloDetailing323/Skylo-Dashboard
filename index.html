@@ -835,23 +835,20 @@ function hcpCall(endpoint, params) {
   });
 }
 
-// Fetches all pages for list endpoints (jobs, invoices, etc.)
+// Fetches all pages — keeps going until HCP returns a partial page or total_count is reached
 function hcpCallAll(endpoint, params, listKey) {
-  var baseParams = Object.assign({}, params, { page_size: '200', page: '1' });
-  return hcpCall(endpoint, baseParams).then(function(data) {
-    var items = data[listKey] || [];
-    var total = data.total_count || data.total || items.length;
-    if (items.length >= total) return items;
-    var pages = Math.ceil(total / 200);
-    var reqs = [];
-    for (var p = 2; p <= pages; p++) {
-      reqs.push(hcpCall(endpoint, Object.assign({}, params, { page_size: '200', page: String(p) })));
-    }
-    return Promise.all(reqs).then(function(results) {
-      results.forEach(function(r) { items = items.concat(r[listKey] || []); });
-      return items;
+  var PAGE = 200;
+  function fetchPage(page, acc) {
+    return hcpCall(endpoint, Object.assign({}, params, { page_size: String(PAGE), page: String(page) })).then(function(data) {
+      var items = data[listKey] || [];
+      acc = acc.concat(items);
+      var total = data.total_count || data.total || 0;
+      // Stop if we got a partial page (no more data) or hit the declared total
+      if (items.length < PAGE || (total > 0 && acc.length >= total)) return acc;
+      return fetchPage(page + 1, acc);
     });
-  });
+  }
+  return fetchPage(1, []);
 }
 
 function isDone(j) {
@@ -886,9 +883,18 @@ function loadLiveData() {
 
   var range = getMonthRange();
   hcpCallAll('/jobs', {}, 'jobs').then(function(allJobs) {
-    var jobs = allJobs.filter(function(j) {
-      return isDone(j) && getJobDate(j) >= range.start && getJobDate(j) <= range.end;
+    var allDone = allJobs.filter(isDone);
+    var jobs = allDone.filter(function(j) {
+      return getJobDate(j) >= range.start && getJobDate(j) <= range.end;
     });
+    // Temporary: show total fetched vs completed in subtitle
+    document.querySelector('#page-live .topbar-sub') && (document.querySelector('#page-live .topbar-sub').textContent = '');
+    document.getElementById('live-error').style.display='block';
+    document.getElementById('live-error').style.background='rgba(41,171,226,0.08)';
+    document.getElementById('live-error').style.border='1px solid rgba(41,171,226,0.3)';
+    document.getElementById('live-error').style.color='var(--skylo)';
+    document.getElementById('live-error').style.fontSize='12px';
+    document.getElementById('live-error').textContent='HCP: '+allJobs.length+' total jobs fetched, '+allDone.length+' completed all-time, '+jobs.length+' completed this month';
 
     var totalRevenue = 0;
     var completedJobs = 0;
